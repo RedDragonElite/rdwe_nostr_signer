@@ -19,9 +19,9 @@ It injects a `window.nostr` object into every webpage. When a Nostr client (like
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  WEB PAGE                                                │
-│  window.nostr.signEvent(event)  ←── inject.js (MAIN)   │
-│         │ postMessage                                    │
+│  WEB PAGE                                               │
+│  window.nostr.signEvent(event)  ←── inject.js (MAIN)    │
+│         │ postMessage                                   │
 └─────────┼───────────────────────────────────────────────┘
           │
 ┌─────────▼───────────────────────────────────────────────┐
@@ -317,5 +317,5 @@ Any site implementing NIP-07 will work automatically:
 ## Built By
 
 **◢ RD-ELITE ◣** · Red Dragon Web Engine  
-Crafted with 🔥 by Claude for the RDWE project  
+Crafted with 🔥 by 🌊 for the RDWE project  
 License: BFS 6.66
