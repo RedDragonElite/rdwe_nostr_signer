@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RDWE Nostr Signer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #060606;
+      --bg2:     #0b0b0b;
+      --bg3:     #111;
+      --border:  #0d2e1a;
+      --green:   #00ff88;
+      --green2:  #00c96a;
+      --green3:  #005c30;
+      --dim:     #2a7a50;
+      --red:     #ff2255;
+      --yellow:  #ffd700;
+      --text:    #c8ffe0;
+      --textdim: #4a9a6a;
+    }
+
+    html { width: 380px; }
+
+    body {
+      background: var(--bg);
+      color: var(--green);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      min-height: 520px;
+      width: 380px;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--green3); }
+
+    /* ── Header ── */
+    .hdr {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .hdr-brand  { display: flex; align-items: center; gap: 8px; }
+    .hdr-logo   { color: var(--red); font-size: 14px; font-weight: bold; letter-spacing: 1px; text-shadow: 0 0 8px var(--red); }
+    .hdr-title  { color: var(--textdim); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+    .hdr-ver    { color: var(--dim); font-size: 10px; }
+
+    /* ── Status bar ── */
+    .statusbar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 4px 12px;
+      display: flex;
+      gap: 14px;
+      font-size: 11px;
+      color: var(--textdim);
+      align-items: center;
+    }
+    .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+    .dot-green  { background: var(--green);  box-shadow: 0 0 4px var(--green); }
+    .dot-yellow { background: var(--yellow); box-shadow: 0 0 4px var(--yellow); }
+    .dot-red    { background: var(--red);    box-shadow: 0 0 4px var(--red); }
+    .dot-dim    { background: var(--dim); }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg2); }
+    .tab {
+      flex: 1; padding: 6px 4px; text-align: center; cursor: pointer;
+      color: var(--dim); font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+      border-right: 1px solid var(--border); transition: all 0.1s; user-select: none;
+    }
+    .tab:last-child { border-right: none; }
+    .tab:hover { color: var(--green2); background: var(--bg3); }
+    .tab.active { color: var(--green); background: var(--bg3); border-bottom: 2px solid var(--green); }
+
+    /* ── Panels ── */
+    .panel { display: none; padding: 10px 12px; }
+    .panel.active { display: block; }
+
+    /* ── Section ── */
+    .section {
+      border: 1px solid var(--border); padding: 8px 10px;
+      margin-bottom: 8px; background: var(--bg2);
+    }
+    .section-title {
+      color: var(--dim); font-size: 10px; letter-spacing: 2px;
+      text-transform: uppercase; margin-bottom: 6px;
+      border-bottom: 1px solid var(--border); padding-bottom: 4px;
+    }
+
+    /* ── Lock screen ── */
+    #screen-lock, #screen-setup {
+      padding: 14px 12px;
+    }
+
+    .lock-logo {
+      text-align: center;
+      font-size: 28px;
+      margin-bottom: 8px;
+      color: var(--red);
+      text-shadow: 0 0 12px var(--red);
+    }
+
+    .lock-title {
+      text-align: center;
+      color: var(--green);
+      font-size: 13px;
+      letter-spacing: 3px;
+      margin-bottom: 4px;
+    }
+
+    .lock-sub {
+      text-align: center;
+      color: var(--dim);
+      font-size: 10px;
+      margin-bottom: 14px;
+    }
+
+    /* ── Key display ── */
+    .key-box {
+      background: var(--bg); border: 1px solid var(--border);
+      padding: 6px 8px; margin: 4px 0; font-size: 10px;
+      word-break: break-all; cursor: pointer;
+      transition: border-color 0.15s; position: relative;
+    }
+    .key-box:hover { border-color: var(--green3); }
+    .key-label  { color: var(--dim); font-size: 9px; letter-spacing: 1px; display: block; margin-bottom: 2px; }
+    .key-value  { color: var(--green); font-size: 10px; }
+    .copy-hint  { position: absolute; right: 6px; top: 6px; font-size: 9px; color: var(--dim); }
+
+    /* ── Inputs ── */
+    input[type="text"], input[type="password"], textarea {
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--green); font-family: inherit; font-size: 11px;
+      padding: 6px 8px; width: 100%; outline: none;
+      transition: border-color 0.15s; resize: vertical;
+    }
+    input:focus, textarea:focus { border-color: var(--green3); }
+    input::placeholder, textarea::placeholder { color: var(--dim); }
+
+    /* ── Password strength ── */
+    .pw-strength {
+      height: 3px; background: var(--bg3); margin-top: 3px;
+      border: 1px solid var(--border);
+    }
+    .pw-bar { height: 100%; width: 0%; transition: width 0.3s, background 0.3s; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 6px; margin-top: 6px; }
+    button {
+      background: var(--bg); border: 1px solid var(--green3);
+      color: var(--green); cursor: pointer; font-family: inherit;
+      font-size: 11px; padding: 5px 10px; flex: 1;
+      text-transform: uppercase; letter-spacing: 1px; transition: all 0.1s;
+    }
+    button:hover { background: var(--green); color: var(--bg); border-color: var(--green); }
+    button.btn-danger { border-color: var(--red); color: var(--red); }
+    button.btn-danger:hover { background: var(--red); color: var(--bg); border-color: var(--red); }
+    button.btn-yellow { border-color: var(--yellow); color: var(--yellow); }
+    button.btn-yellow:hover { background: var(--yellow); color: var(--bg); border-color: var(--yellow); }
+    button.btn-small { padding: 3px 7px; font-size: 10px; flex: none; }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+    button:disabled:hover { background: var(--bg); color: var(--green); border-color: var(--green3); }
+
+    /* ── Messages ── */
+    .msg { padding: 5px 8px; margin: 4px 0; font-size: 11px; border-left: 2px solid; }
+    .msg-ok   { border-color: var(--green);  color: var(--green2); background: #001a0d; }
+    .msg-err  { border-color: var(--red);    color: var(--red);    background: #1a000a; }
+    .msg-warn { border-color: var(--yellow); color: var(--yellow); background: #1a1400; }
+
+    /* ── Lock indicator ── */
+    .lock-state {
+      font-size: 10px; padding: 2px 6px; border: 1px solid;
+      letter-spacing: 1px;
+    }
+    .lock-state.locked   { border-color: var(--red);    color: var(--red); }
+    .lock-state.unlocked { border-color: var(--green);  color: var(--green); }
+
+    /* ── Perms ── */
+    .perm-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 0; border-bottom: 1px solid var(--border); gap: 6px;
+    }
+    .perm-row:last-child { border-bottom: none; }
+    .perm-origin { color: var(--green2); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .perm-methods { color: var(--dim); font-size: 9px; }
+
+    /* ── Log ── */
+    .log-area {
+      background: var(--bg); border: 1px solid var(--border);
+      height: 160px; overflow-y: auto; font-size: 10px; padding: 4px;
+    }
+    .log-entry { padding: 2px 4px; border-bottom: 1px solid #0a0a0a; display: flex; gap: 6px; align-items: baseline; }
+    .log-ts     { color: var(--dim); min-width: 70px; }
+    .log-origin { color: var(--textdim); flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .log-method { color: var(--green2); min-width: 80px; }
+    .log-status-ok  { color: var(--green); }
+    .log-status-err { color: var(--red); }
+    .log-empty { color: var(--dim); text-align: center; padding: 20px; font-size: 11px; }
+
+    /* ── Relay ── */
+    .relay-row { display: flex; gap: 4px; margin-bottom: 4px; align-items: center; }
+    .relay-row input { flex: 1; }
+    .relay-rw { display: flex; flex-direction: column; gap: 2px; }
+    .relay-rw label { font-size: 9px; color: var(--dim); display: flex; align-items: center; gap: 3px; cursor: pointer; }
+    .relay-rw input[type="checkbox"] { width: auto; padding: 0; border: none; background: none; accent-color: var(--green); }
+
+    /* ── Security badge ── */
+    .sec-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: #001a0d; border: 1px solid var(--green3);
+      padding: 5px 8px; font-size: 10px; color: var(--textdim);
+      margin-bottom: 8px;
+    }
+    .sec-badge .icon { color: var(--green); font-size: 13px; }
+
+    .hidden { display: none !important; }
+    .mt4 { margin-top: 4px; }
+    .mb4 { margin-bottom: 4px; }
+    .text-dim { color: var(--dim); }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-brand">
+      <span class="hdr-logo">◢ RDWE ◣</span>
+      <span class="hdr-title">Nostr Signer</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="hdr-ver">v1.1.0</span>
+      <span class="lock-state locked" id="lock-badge">🔒 LOCKED</span>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <span><span class="dot dot-dim" id="key-dot"></span><span id="key-status">LOADING…</span></span>
+    <span><span class="dot dot-dim" id="act-dot"></span><span id="act-count">0 EVENTS</span></span>
+    <span style="margin-left:auto">
+      <button id="lock-btn" class="btn-small btn-danger hidden" title="Lock session">🔒 LOCK</button>
+    </span>
+  </div>
+
+  <!-- ══ SCREEN: First-time setup ══ -->
+  <div id="screen-setup" class="hidden">
+    <div class="lock-logo">◢🐉◣</div>
+    <div class="lock-title">FIRST-TIME SETUP</div>
+    <div class="lock-sub">Create a master password to protect your key</div>
+
+    <div class="section">
+      <div class="section-title">⚠ Master Password</div>
+      <div class="sec-badge">
+        <span class="icon">🔐</span>
+        Your key is encrypted with this password using AES-256-GCM + PBKDF2 (310k iterations). It is NEVER stored — only you know it.
+      </div>
+      <input type="password" id="setup-pw1" placeholder="Choose a strong password…" autocomplete="new-password">
+      <div class="pw-strength"><div class="pw-bar" id="pw-bar"></div></div>
+      <div id="pw-hint" class="text-dim mt4" style="font-size:10px"></div>
+      <input type="password" id="setup-pw2" placeholder="Confirm password…" autocomplete="new-password" style="margin-top:6px">
+
+      <div class="section-title" style="margin-top:10px">Import or Generate Key</div>
+      <input type="password" id="setup-nsec" placeholder="nsec1… (leave empty to generate new)" autocomplete="off" spellcheck="false">
+      <div class="btn-row">
+        <button id="setup-import-btn">⌨ Setup with nsec</button>
+        <button id="setup-gen-btn">⚡ Generate New</button>
+      </div>
+      <div id="setup-msg"></div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Unlock ══ -->
+  <div id="screen-lock" class="hidden">
+    <div class="lock-logo">◢🔒◣</div>
+    <div class="lock-title">SESSION LOCKED</div>
+    <div class="lock-sub">Enter your master password to unlock</div>
+
+    <div class="section">
+      <input type="password" id="unlock-pw" placeholder="Master password…" autocomplete="current-password">
+      <div class="btn-row">
+        <button id="unlock-btn">🔓 Unlock</button>
+      </div>
+      <div id="unlock-msg"></div>
+
+      <div style="margin-top:10px; text-align:center">
+        <button class="btn-small btn-danger" id="wipe-btn">✖ Wipe & Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Main (unlocked) ══ -->
+  <div id="screen-main" class="hidden">
+    <div class="tabs">
+      <div class="tab active" data-tab="keys">🗝 Keys</div>
+      <div class="tab" data-tab="perms">🛡 Perms</div>
+      <div class="tab" data-tab="relays">📡 Relays</div>
+      <div class="tab" data-tab="log">📋 Log</div>
+    </div>
+
+    <!-- KEYS -->
+    <div class="panel active" id="tab-keys">
+      <div class="section">
+        <div class="section-title">Public Key</div>
+        <div class="key-box" id="npub-box" title="Click to copy">
+          <span class="key-label">NPUB</span>
+          <span class="key-value" id="npub-val">—</span>
+          <span class="copy-hint">⎘ COPY</span>
+        </div>
+        <div class="key-box" id="pubhex-box" title="Click to copy">
+          <span class="key-label">HEX PUBKEY</span>
+          <span class="key-value" id="pubhex-val">—</span>
+          <span class="copy-hint">⎘ COPY</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Private Key — ⚠ Sensitive</div>
+        <div class="sec-badge">
+          <span class="icon">🔐</span>
+          Your nsec is encrypted with AES-256-GCM. Only shown below while session is unlocked.
+        </div>
+        <div id="nsec-reveal-area">
+          <button id="show-nsec-btn" class="btn-yellow" style="width:100%">👁 Reveal nsec (session unlocked)</button>
+          <div id="nsec-shown" class="hidden mt4">
+            <div class="key-box" id="nsec-box" title="Click to copy">
+              <span class="key-label">⚠ PRIVATE KEY — NEVER SHARE</span>
+              <span class="key-value" id="nsec-val">—</span>
+              <span class="copy-hint">⎘ COPY</span>
+            </div>
+            <button id="hide-nsec-btn" style="width:100%" class="mt4">✖ Hide</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Change / Replace Key</div>
+        <input type="password" id="replace-nsec" placeholder="nsec1… (paste to replace)" autocomplete="off" spellcheck="false">
+        <input type="password" id="replace-pw" placeholder="Master password (to re-encrypt)" autocomplete="current-password" style="margin-top:4px">
+        <div class="btn-row">
+          <button id="replace-btn">⌨ Replace Key</button>
+          <button id="newkey-btn">⚡ Generate New</button>
+        </div>
+        <div id="replace-msg"></div>
+        <div class="btn-row mt4">
+          <button id="delete-btn" class="btn-danger">✖ Delete Everything</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PERMS -->
+    <div class="panel" id="tab-perms">
+      <div class="section">
+        <div class="section-title">Trusted Sites</div>
+        <div id="perms-list"><div class="log-empty">> NO PERMISSIONS GRANTED</div></div>
+        <div class="btn-row mt4">
+          <button id="revoke-all-btn" class="btn-danger">✖ Revoke All</button>
+          <button id="refresh-perms-btn">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">Info</div>
+        <p class="text-dim" style="font-size:10px;line-height:1.6">
+          <code style="color:var(--green2)">getPublicKey()</code> is always auto-approved.
+          All other methods show an approval dialog. Grant "Always allow" to skip future prompts per site.
+        </p>
+      </div>
+    </div>
+
+    <!-- RELAYS -->
+    <div class="panel" id="tab-relays">
+      <div class="section">
+        <div class="section-title">Default Relays</div>
+        <div id="relay-list"></div>
+        <div class="btn-row mt4">
+          <button id="add-relay-btn">+ Add</button>
+          <button id="save-relays-btn">💾 Save</button>
+        </div>
+        <div id="relay-msg"></div>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div class="panel" id="tab-log">
+      <div class="section">
+        <div class="section-title">Activity Log <span id="log-count" class="text-dim">(0)</span></div>
+        <div class="log-area" id="log-area"><div class="log-empty">> NO ACTIVITY YET</div></div>
+        <div class="btn-row mt4">
+          <button id="refresh-log-btn">↻ Refresh</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /screen-main -->
+
+  <!-- Toast -->
+  <div id="toast" class="hidden msg msg-ok" style="position:fixed;bottom:8px;left:12px;right:12px;z-index:9999">
+    ⎘ Copied!
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

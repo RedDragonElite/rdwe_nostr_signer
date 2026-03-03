@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RDWE — Permission Request</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #060606; --bg2: #0b0b0b; --border: #0d2e1a;
+      --green: #00ff88; --green2: #00c96a; --green3: #005c30;
+      --dim: #2a7a50; --red: #ff2255; --yellow: #ffd700;
+      --text: #c8ffe0; --textdim: #4a9a6a;
+    }
+    body { background: var(--bg); color: var(--green); font-family: 'Courier New', monospace; font-size: 12px; width: 520px; min-height: 460px; }
+    ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--green3); }
+
+    .hdr { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 9px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .hdr-logo { color: var(--red); font-size: 14px; font-weight: bold; text-shadow: 0 0 8px var(--red); }
+    .hdr-sub  { color: var(--textdim); font-size: 10px; letter-spacing: 2px; }
+
+    /* Queue counter */
+    .queue-bar { background: #0a0a0a; border-bottom: 1px solid var(--border); padding: 5px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--dim); }
+    .queue-count { color: var(--yellow); font-weight: bold; }
+
+    .alert-bar { background: #1a0020; border-bottom: 2px solid var(--yellow); padding: 7px 14px; color: var(--yellow); font-size: 11px; display: flex; align-items: center; gap: 8px; }
+
+    .body { padding: 12px 14px; }
+    .req-origin { font-size: 15px; color: var(--green); font-weight: bold; margin-bottom: 3px; word-break: break-all; }
+    .method-badge { display: inline-block; background: #1a0d00; border: 1px solid var(--yellow); color: var(--yellow); font-size: 10px; padding: 2px 7px; letter-spacing: 1px; margin-bottom: 10px; }
+
+    .detail-box { background: var(--bg2); border: 1px solid var(--border); padding: 7px 10px; margin-bottom: 10px; }
+    .detail-label { color: var(--dim); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+    .detail-content { color: var(--text); word-break: break-all; max-height: 90px; overflow-y: auto; white-space: pre-wrap; font-size: 10px; line-height: 1.5; }
+
+    .warn-text { color: var(--textdim); font-size: 10px; line-height: 1.6; margin-bottom: 10px; }
+
+    .remember-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--textdim); font-size: 11px; cursor: pointer; }
+    .remember-row input[type="checkbox"] { accent-color: var(--green); width: 14px; height: 14px; }
+
+    /* Button grid */
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .btn-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 6px; }
+
+    button {
+      background: var(--bg); border: 1px solid; cursor: pointer;
+      font-family: inherit; font-size: 11px; padding: 9px 8px;
+      text-transform: uppercase; letter-spacing: 1px; transition: all 0.1s;
+    }
+    .btn-approve { border-color: var(--green); color: var(--green); }
+    .btn-approve:hover { background: var(--green); color: var(--bg); }
+    .btn-deny    { border-color: var(--red);   color: var(--red); }
+    .btn-deny:hover   { background: var(--red);   color: var(--bg); }
+    .btn-all     { border-color: var(--yellow); color: var(--yellow); font-size: 10px; }
+    .btn-all:hover    { background: var(--yellow); color: var(--bg); }
+    .btn-deny-all{ border-color: var(--red);   color: var(--red); font-size: 10px; }
+    .btn-deny-all:hover { background: var(--red); color: var(--bg); }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+
+    #loading { text-align: center; padding: 60px; color: var(--dim); font-size: 13px; }
+    #done-screen { text-align: center; padding: 60px; color: var(--green2); display: none; }
+    #content { display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="hdr">
+    <span class="hdr-logo">◢ RDWE ◣</span>
+    <span class="hdr-sub">PERMISSION REQUEST</span>
+  </div>
+
+  <div id="loading">⏳ LOADING REQUEST…</div>
+
+  <div id="content">
+    <div class="queue-bar">
+      <span>REQUEST</span>
+      <span class="queue-count" id="queue-info">1 PENDING</span>
+    </div>
+
+    <div class="alert-bar">
+      <span>⚠</span>
+      <span id="alert-text">A website is requesting access</span>
+    </div>
+
+    <div class="body">
+      <div class="req-origin" id="req-origin">—</div>
+      <div class="method-badge" id="method-badge">—</div>
+
+      <div class="detail-box" id="detail-box" style="display:none">
+        <div class="detail-label" id="detail-label">Details</div>
+        <div class="detail-content" id="detail-content">—</div>
+      </div>
+
+      <div class="warn-text" id="warn-text"></div>
+
+      <label class="remember-row">
+        <input type="checkbox" id="remember-cb">
+        Always allow <span id="remember-origin" style="color:var(--green2)">this site</span>
+        to use <span id="remember-method" style="color:var(--yellow)">this method</span>
+      </label>
+
+      <!-- Per-request buttons -->
+      <div class="btn-grid">
+        <button class="btn-deny"    id="deny-btn">  ✖ Deny This</button>
+        <button class="btn-approve" id="approve-btn">✔ Approve This</button>
+      </div>
+
+      <hr class="divider" id="multi-divider" style="display:none">
+
+      <!-- Multi-request buttons (shown when queue > 1) -->
+      <div class="btn-grid-3" id="multi-btns" style="display:none">
+        <button class="btn-deny-all" id="deny-all-btn">✖ Deny All</button>
+        <span></span>
+        <button class="btn-all"      id="approve-all-btn">✔ Approve All</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="done-screen">✔ ALL DONE<br><span style="font-size:10px;color:var(--dim)">Window closing…</span></div>
+
+  <script src="prompt.js"></script>
+</body>
+</html>
