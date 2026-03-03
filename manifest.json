@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "RDWE Nostr Signer",
+  "short_name": "RDWE Nostr",
+  "version": "1.3.0",
+  "description": "Red Dragon Web Engine · NIP-07 Nostr Signer · Secure key management",
+
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content_script.js"],
+      "run_at": "document_start"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "RDWE Nostr Signer",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "48":  "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "permissions": [
+    "storage",
+    "windows",
+    "tabs"
+  ],
+
+  "host_permissions": ["<all_urls>"],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
