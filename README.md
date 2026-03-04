@@ -9,11 +9,6 @@
 
 **The most secure NIP-07 Nostr Signer extension — built by Red Dragon Elite.**
 
-<img width="407" height="564" alt="image" src="https://github.com/user-attachments/assets/665d65f8-c21a-4450-b183-3db110e3aa40" />
-<img width="399" height="597" alt="image" src="https://github.com/user-attachments/assets/5eb83722-4d90-4efa-9e02-ac08df2c174c" />
-<img width="405" height="551" alt="image" src="https://github.com/user-attachments/assets/434b4a71-6501-4740-835f-9a489b368f27" />
-<img width="405" height="549" alt="image" src="https://github.com/user-attachments/assets/1f4ce68f-c5bf-44cb-ac94-90403a58f247" />
-
 *Your nsec never leaves your machine in plain text. Not to Discord. Not to servers. Not to anyone. Ever.*
 
 *Built by [Red Dragon Elite](https://rd-elite.com) | Free Forever | Encrypted by Design*
@@ -59,7 +54,10 @@ We said no.
 
 ## 📸 Screenshots
 
-> *Coming soon — your setup here!*
+<img width="407" height="564" alt="image" src="https://github.com/user-attachments/assets/665d65f8-c21a-4450-b183-3db110e3aa40" />
+<img width="399" height="597" alt="image" src="https://github.com/user-attachments/assets/5eb83722-4d90-4efa-9e02-ac08df2c174c" />
+<img width="405" height="551" alt="image" src="https://github.com/user-attachments/assets/434b4a71-6501-4740-835f-9a489b368f27" />
+<img width="405" height="549" alt="image" src="https://github.com/user-attachments/assets/1f4ce68f-c5bf-44cb-ac94-90403a58f247" />
 
 ---
 
