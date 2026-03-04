@@ -6,60 +6,75 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #060606; --bg2: #0b0b0b; --border: #0d2e1a;
-      --green: #00ff88; --green2: #00c96a; --green3: #005c30;
-      --dim: #2a7a50; --red: #ff2255; --yellow: #ffd700;
-      --text: #c8ffe0; --textdim: #4a9a6a;
+      --bg:#060606; --bg2:#0b0b0b; --border:#0d2e1a;
+      --green:#00ff88; --green2:#00c96a; --green3:#005c30;
+      --dim:#2a7a50; --red:#ff2255; --yellow:#ffd700; --text:#c8ffe0; --textdim:#4a9a6a;
     }
-    body { background: var(--bg); color: var(--green); font-family: 'Courier New', monospace; font-size: 12px; width: 520px; min-height: 460px; }
-    ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--green3); }
+    body { background:var(--bg); color:var(--green); font-family:'Courier New',monospace; font-size:12px; width:520px; min-height:480px; }
+    ::-webkit-scrollbar{width:3px} ::-webkit-scrollbar-thumb{background:var(--green3)}
 
-    .hdr { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 9px 14px; display: flex; justify-content: space-between; align-items: center; }
-    .hdr-logo { color: var(--red); font-size: 14px; font-weight: bold; text-shadow: 0 0 8px var(--red); }
-    .hdr-sub  { color: var(--textdim); font-size: 10px; letter-spacing: 2px; }
+    .hdr { background:var(--bg2); border-bottom:1px solid var(--border); padding:9px 14px; display:flex; justify-content:space-between; align-items:center; }
+    .hdr-logo { color:var(--red); font-size:14px; font-weight:bold; text-shadow:0 0 8px var(--red); letter-spacing:1px; }
+    .hdr-sub  { color:var(--textdim); font-size:10px; letter-spacing:2px; }
 
-    /* Queue counter */
-    .queue-bar { background: #0a0a0a; border-bottom: 1px solid var(--border); padding: 5px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--dim); }
-    .queue-count { color: var(--yellow); font-weight: bold; }
+    .queue-bar { background:#0a0a0a; border-bottom:1px solid var(--border); padding:5px 14px; display:flex; justify-content:space-between; font-size:10px; color:var(--dim); }
+    .queue-count { color:var(--yellow); font-weight:bold; }
 
-    .alert-bar { background: #1a0020; border-bottom: 2px solid var(--yellow); padding: 7px 14px; color: var(--yellow); font-size: 11px; display: flex; align-items: center; gap: 8px; }
+    .alert-bar { background:#1a0020; border-bottom:2px solid var(--yellow); padding:7px 14px; color:var(--yellow); font-size:11px; display:flex; align-items:center; gap:8px; }
 
-    .body { padding: 12px 14px; }
-    .req-origin { font-size: 15px; color: var(--green); font-weight: bold; margin-bottom: 3px; word-break: break-all; }
-    .method-badge { display: inline-block; background: #1a0d00; border: 1px solid var(--yellow); color: var(--yellow); font-size: 10px; padding: 2px 7px; letter-spacing: 1px; margin-bottom: 10px; }
+    .body { padding:11px 14px; }
+    .req-origin { font-size:15px; color:var(--green); font-weight:bold; margin-bottom:3px; word-break:break-all; }
+    .method-badge { display:inline-block; background:#1a0d00; border:1px solid var(--yellow); color:var(--yellow); font-size:10px; padding:2px 7px; letter-spacing:1px; margin-bottom:9px; }
 
-    .detail-box { background: var(--bg2); border: 1px solid var(--border); padding: 7px 10px; margin-bottom: 10px; }
-    .detail-label { color: var(--dim); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
-    .detail-content { color: var(--text); word-break: break-all; max-height: 90px; overflow-y: auto; white-space: pre-wrap; font-size: 10px; line-height: 1.5; }
+    .detail-box { background:var(--bg2); border:1px solid var(--border); padding:7px 10px; margin-bottom:9px; }
+    .detail-label { color:var(--dim); font-size:9px; letter-spacing:1px; text-transform:uppercase; margin-bottom:3px; }
+    .detail-content { color:var(--text); word-break:break-all; max-height:80px; overflow-y:auto; white-space:pre-wrap; font-size:10px; line-height:1.5; }
 
-    .warn-text { color: var(--textdim); font-size: 10px; line-height: 1.6; margin-bottom: 10px; }
+    .warn-text { color:var(--textdim); font-size:10px; line-height:1.5; margin-bottom:9px; }
 
-    .remember-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--textdim); font-size: 11px; cursor: pointer; }
-    .remember-row input[type="checkbox"] { accent-color: var(--green); width: 14px; height: 14px; }
-
-    /* Button grid */
-    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-    .btn-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 6px; }
-
-    button {
-      background: var(--bg); border: 1px solid; cursor: pointer;
-      font-family: inherit; font-size: 11px; padding: 9px 8px;
-      text-transform: uppercase; letter-spacing: 1px; transition: all 0.1s;
+    /* ── UNLOCK SECTION ── */
+    .unlock-section {
+      background:#0a0005; border:1px solid var(--red); padding:10px 12px; margin-bottom:10px;
     }
-    .btn-approve { border-color: var(--green); color: var(--green); }
-    .btn-approve:hover { background: var(--green); color: var(--bg); }
-    .btn-deny    { border-color: var(--red);   color: var(--red); }
-    .btn-deny:hover   { background: var(--red);   color: var(--bg); }
-    .btn-all     { border-color: var(--yellow); color: var(--yellow); font-size: 10px; }
-    .btn-all:hover    { background: var(--yellow); color: var(--bg); }
-    .btn-deny-all{ border-color: var(--red);   color: var(--red); font-size: 10px; }
-    .btn-deny-all:hover { background: var(--red); color: var(--bg); }
+    .unlock-label { color:var(--red); font-size:10px; letter-spacing:2px; margin-bottom:7px; display:flex; align-items:center; gap:6px; }
+    .unlock-label span { font-size:14px; }
+    .pw-row { display:flex; gap:6px; align-items:center; }
+    .pw-row input {
+      flex:1; background:var(--bg); border:1px solid var(--border); color:var(--green);
+      font-family:inherit; font-size:11px; padding:6px 8px; outline:none;
+      transition:border-color .15s;
+    }
+    .pw-row input:focus { border-color:var(--red); }
+    .pw-row input::placeholder { color:var(--dim); }
+    .pw-error { color:var(--red); font-size:10px; margin-top:5px; display:none; }
 
-    .divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+    /* ── Status indicators ── */
+    .status-row { display:flex; align-items:center; gap:7px; font-size:10px; margin-bottom:8px; padding:5px 8px; border:1px solid var(--border); }
+    .status-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .status-dot.locked   { background:var(--red);   box-shadow:0 0 4px var(--red); }
+    .status-dot.unlocked { background:var(--green); box-shadow:0 0 4px var(--green); }
 
-    #loading { text-align: center; padding: 60px; color: var(--dim); font-size: 13px; }
-    #done-screen { text-align: center; padding: 60px; color: var(--green2); display: none; }
-    #content { display: none; }
+    /* ── Remember ── */
+    .remember-row { display:flex; align-items:center; gap:8px; margin-bottom:11px; color:var(--textdim); font-size:11px; cursor:pointer; }
+    .remember-row input[type="checkbox"] { accent-color:var(--green); width:14px; height:14px; }
+
+    /* ── Buttons ── */
+    .btn-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .btn-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:6px; }
+    button { background:var(--bg); border:1px solid; cursor:pointer; font-family:inherit; font-size:11px; padding:9px 8px; text-transform:uppercase; letter-spacing:1px; transition:all .1s; }
+    .btn-approve { border-color:var(--green); color:var(--green); }
+    .btn-approve:hover { background:var(--green); color:var(--bg); }
+    .btn-deny    { border-color:var(--red);   color:var(--red); }
+    .btn-deny:hover   { background:var(--red);   color:var(--bg); }
+    .btn-all     { border-color:var(--yellow); color:var(--yellow); font-size:10px; }
+    .btn-all:hover    { background:var(--yellow); color:var(--bg); }
+    .btn-deny-all{ border-color:var(--red); color:var(--red); font-size:10px; }
+    .btn-deny-all:hover { background:var(--red); color:var(--bg); }
+
+    hr.divider { border:none; border-top:1px solid var(--border); margin:9px 0; }
+    #loading { text-align:center; padding:60px; color:var(--dim); font-size:13px; }
+    #done-screen { text-align:center; padding:60px; color:var(--green2); display:none; }
+    #content { display:none; }
   </style>
 </head>
 <body>
@@ -93,30 +108,49 @@
 
       <div class="warn-text" id="warn-text"></div>
 
+      <!-- Locked: show password field -->
+      <div class="unlock-section" id="unlock-section" style="display:none">
+        <div class="unlock-label"><span>🔒</span> SESSION LOCKED — ENTER PASSWORD TO APPROVE</div>
+        <div class="pw-row">
+          <input type="password" id="pw-input" placeholder="Master password…" autocomplete="current-password">
+        </div>
+        <div class="pw-error" id="pw-error"></div>
+      </div>
+
+      <!-- Unlocked indicator -->
+      <div class="status-row" id="unlocked-note" style="display:none">
+        <div class="status-dot unlocked"></div>
+        <span style="color:var(--green)">SESSION UNLOCKED</span>
+        <span style="color:var(--dim);margin-left:4px">— approve to sign</span>
+      </div>
+      <!-- Locked indicator (before password) -->
+      <div class="status-row" id="unlock-note" style="display:none">
+        <div class="status-dot locked"></div>
+        <span style="color:var(--red)">SESSION LOCKED</span>
+        <span style="color:var(--dim);margin-left:4px">— password required</span>
+      </div>
+
       <label class="remember-row">
         <input type="checkbox" id="remember-cb">
         Always allow <span id="remember-origin" style="color:var(--green2)">this site</span>
         to use <span id="remember-method" style="color:var(--yellow)">this method</span>
       </label>
 
-      <!-- Per-request buttons -->
       <div class="btn-grid">
-        <button class="btn-deny"    id="deny-btn">  ✖ Deny This</button>
-        <button class="btn-approve" id="approve-btn">✔ Approve This</button>
+        <button class="btn-deny"    id="deny-btn">✖ Deny</button>
+        <button class="btn-approve" id="approve-btn">✔ Approve</button>
       </div>
 
       <hr class="divider" id="multi-divider" style="display:none">
-
-      <!-- Multi-request buttons (shown when queue > 1) -->
       <div class="btn-grid-3" id="multi-btns" style="display:none">
         <button class="btn-deny-all" id="deny-all-btn">✖ Deny All</button>
         <span></span>
-        <button class="btn-all"      id="approve-all-btn">✔ Approve All</button>
+        <button class="btn-all" id="approve-all-btn">✔ Approve All</button>
       </div>
     </div>
   </div>
 
-  <div id="done-screen">✔ ALL DONE<br><span style="font-size:10px;color:var(--dim)">Window closing…</span></div>
+  <div id="done-screen">✔ DONE<br><span style="font-size:10px;color:var(--dim)">Closing…</span></div>
 
   <script src="prompt.js"></script>
 </body>
