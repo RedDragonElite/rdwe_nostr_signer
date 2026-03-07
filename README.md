@@ -9,6 +9,8 @@
 
 **The most secure NIP-07 Nostr Signer extension — built by Red Dragon Elite.**
 
+<center><img width="256" height="256" alt="AIRetouch_20260305_225134663" src="https://github.com/user-attachments/assets/5eb6da75-fd73-4140-b908-cf104de0a635" /></center>
+
 *Your nsec never leaves your machine in plain text. Not to Discord. Not to servers. Not to anyone. Ever.*
 
 *Built by [Red Dragon Elite](https://rd-elite.com) | Free Forever | Encrypted by Design*
