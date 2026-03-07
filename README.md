@@ -1,9 +1,5 @@
 # 🐉 RDWE Nostr Signer
 
-<div align="center">
-<img width="128" height="128" alt="AIRetouch_20260305_225134663" src="https://github.com/user-attachments/assets/aa838a3f-6bdd-47d3-bd99-6987f90211e2" />
-</div>
-
 [![Version](https://img.shields.io/badge/version-1.5.0-red?style=for-the-badge)](https://github.com/RedDragonElite/rdwe-nostr-signer)
 [![License](https://img.shields.io/badge/license-RDE%20Black%20Flag-black?style=for-the-badge)](LICENSE)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-blue?style=for-the-badge)](https://developer.chrome.com/docs/extensions/mv3/)
@@ -14,7 +10,9 @@
 **The most secure NIP-07 Nostr Signer extension — built by Red Dragon Elite.**
 
 *Your nsec never leaves your machine in plain text. Not to Discord. Not to servers. Not to anyone. Ever.*
-
+<div align="center">
+<img width="256" height="256" alt="AIRetouch_20260305_225134663" src="https://github.com/user-attachments/assets/aa838a3f-6bdd-47d3-bd99-6987f90211e2" />
+</div>
 *Built by [Red Dragon Elite](https://rd-elite.com) | Free Forever | Encrypted by Design*
 
 [📖 Installation](#-installation) • [🔐 Security Model](#-security-model) • [🚀 Quick Start](#-quick-start) • [🌐 Website](https://rd-elite.com) • [🔭 Terminal](https://rd-elite.com/Files/NOSTR/)
