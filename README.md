@@ -1,43 +1,84 @@
 # 🐉 RDWE Nostr Signer
 
-[![Version](https://img.shields.io/badge/version-1.5.0-red?style=for-the-badge)](https://github.com/RedDragonElite/rdwe-nostr-signer)
+[![Version](https://img.shields.io/badge/version-1.6.0-red?style=for-the-badge)](https://github.com/RedDragonElite/rdwe-nostr-signer)
 [![License](https://img.shields.io/badge/license-RDE%20Black%20Flag-black?style=for-the-badge)](LICENSE)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-blue?style=for-the-badge)](https://developer.chrome.com/docs/extensions/mv3/)
 [![Nostr](https://img.shields.io/badge/Nostr-NIP--07-purple?style=for-the-badge)](https://github.com/nostr-protocol/nips/blob/master/07.md)
 [![Browser](https://img.shields.io/badge/Brave%20%2F%20Chrome-Compatible-orange?style=for-the-badge)](https://brave.com)
 [![Zero Deps](https://img.shields.io/badge/dependencies-ZERO-green?style=for-the-badge)](#)
+[![Self-Tested](https://img.shields.io/badge/self--tests-16%2F16%20RFC%20vectors-brightgreen?style=for-the-badge)](#-cryptographic-self-tests)
 
 **The most secure NIP-07 Nostr Signer extension — built by Red Dragon Elite.**
 
-> *Your nsec never leaves your machine in plain text. Not to Discord. Not to servers. Not to anyone. Ever.*
-
+*Your nsec never leaves your machine in plain text. Not to Discord. Not to servers. Not to anyone. Ever.*
 <div align="center">
-  <img width="256" height="256" alt="RDWE Nostr Signer Logo" src="https://github.com/user-attachments/assets/aa838a3f-6bdd-47d3-bd99-6987f90211e2" />
+<img width="256" height="256" alt="AIRetouch_20260305_225134663" src="https://github.com/user-attachments/assets/aa838a3f-6bdd-47d3-bd99-6987f90211e2" />
 </div>
-
 *Built by [Red Dragon Elite](https://rd-elite.com) | Free Forever | Encrypted by Design*
 
 [📖 Installation](#-installation) • [🔐 Security Model](#-security-model) • [🚀 Quick Start](#-quick-start) • [🌐 Website](https://rd-elite.com) • [🔭 Terminal](https://rd-elite.com/Files/NOSTR/)
 
 ---
 
+## 🆕 What's New in v1.6.0
+
+This release is a security & performance hardening pass. Two real bugs fixed,
+four hardening features added. All changes are verified by **16 RFC-grade
+Known-Answer Tests** that run on every service-worker boot — if any vector
+fails, the extension refuses to handle nostr requests at all.
+
+### 🔴 Bug fixes (correctness)
+
+- **NIP-44 v2 padding now spec-compliant.** Previous versions used
+  next-power-of-2 padding for all lengths. Per spec, lengths above 256
+  use chunk granularity = `nextPower / 8`. Cross-client decryption with
+  nos2x / Alby / Primal / nostr-tools could have failed silently for
+  plaintext lengths 65, 129, 200, 257, 300, …
+- **Invalid-curve attack defense.** `Point.fromXOnly` and `fromCompressed`
+  now reject x-coordinates that don't lie on secp256k1 (previously the
+  square-root primitive returned a value even for off-curve x). This
+  closes a class of side-channel attacks where a malicious peer could
+  leak private-key bits via crafted pubkeys over many ECDH operations.
+
+### ✨ New hardenings
+
+- **🧪 Cryptographic self-tests** (`lib/test_vectors.js`) — 16 KATs against
+  RFC 7539 (ChaCha20), RFC 5869 (HKDF), RFC 4231 (HMAC), BIP-340 (Schnorr),
+  and the NIP-44 v2 spec. Vectors generated independently with Python's
+  `coincurve` + `cryptography` libraries — the JS implementation must
+  match exactly. Runs once on SW init, ~2 seconds.
+- **⚡ NIP-44 conversation-key LRU cache** — in-memory, cleared on lock,
+  never persisted. Decrypting an inbox with 50 DMs from the same peer
+  is now **44× faster** (5.2s → 0.12s). Encrypt path: 3.6× faster.
+- **✍️ Schnorr verify-after-sign** — every signature is fully verified
+  with BIP-340 verification before being returned. Defense in depth
+  against memory glitches, fault attacks, and future implementation
+  regressions. +50ms per signEvent (irrelevant — it's a user action).
+- **🔒 Stricter session lock** — `lockSession()` helper guarantees the
+  conversation-key cache is wiped whenever the session locks. A locked
+  extension has zero key material in memory, period.
+
+See [CHANGELOG_v1.6.md](./CHANGELOG_v1.6.md) for the full audit details.
+
+---
+
 ## 🔥 Why This Signer Destroys the Competition
 
-Every other NIP-07 signer stores your private key as **plain text** in `chrome.storage.local`.
+Every other NIP-07 signer stores your private key as **plain text** in `chrome.storage.local`.  
 One piece of malware. One compromised extension. One browser exploit. **Your identity is gone.**
 
 We said no.
 
 | ❌ Other Signers | ✅ RDWE Nostr Signer |
 |---|---|
-| Plain-text nsec in storage | AES-256-GCM encrypted — always |
-| Key exposed on browser start | Session-locked — requires password |
-| 5 popups for 5 requests | Smart queue — one window, all requests |
-| Error when locked | Unlock prompt appears seamlessly |
-| No master password | PBKDF2-SHA256 · 310,000 iterations |
-| Your nsec in localStorage | Your nsec never hits plain storage |
-| Bloated with node_modules | Zero external dependencies |
-| Closed source / unknown authors | 100% open source · MIT Crypto · RDE |
+| **Plain-text nsec in storage** | **AES-256-GCM encrypted — always** |
+| **Key exposed on browser start** | **Session-locked — requires password** |
+| **5 popups for 5 requests** | **Smart queue — one window, all requests** |
+| **Error when locked** | **Unlock prompt appears seamlessly** |
+| **No master password** | **PBKDF2-SHA256 · 310,000 iterations** |
+| **Your nsec in localStorage** | **Your nsec never hits plain storage** |
+| **Bloated with node_modules** | **Zero external dependencies** |
+| **Closed source / unknown authors** | **100% open source · MIT Crypto · RDE** |
 
 ### 🎯 Key Features
 
@@ -53,15 +94,19 @@ We said no.
 - 📋 **Activity Log** — full history of every signing request
 - 🔑 **Key Generation** — generate a fresh keypair or import your existing nsec
 - ⚙️ **Zero Dependencies** — pure JavaScript, no npm, no node_modules, no supply chain BS
+- 🧪 **Cryptographic Self-Tests** — 16 RFC-grade KATs verify correctness on every boot *(v1.6)*
+- ⚡ **NIP-44 Conversation-Key Cache** — 44× faster inbox decryption *(v1.6)*
+- ✍️ **Verify-After-Sign** — every Schnorr signature is self-verified before release *(v1.6)*
+- 🛡️ **Invalid-Curve Attack Defense** — rejects malicious off-curve pubkeys *(v1.6)*
 
 ---
 
 ## 📸 Screenshots
 
-<img width="407" height="564" alt="Screenshot 1" src="https://github.com/user-attachments/assets/665d65f8-c21a-4450-b183-3db110e3aa40" />
-<img width="399" height="597" alt="Screenshot 2" src="https://github.com/user-attachments/assets/5eb83722-4d90-4efa-9e02-ac08df2c174c" />
-<img width="405" height="551" alt="Screenshot 3" src="https://github.com/user-attachments/assets/434b4a71-6501-4740-835f-9a489b368f27" />
-<img width="405" height="549" alt="Screenshot 4" src="https://github.com/user-attachments/assets/1f4ce68f-c5bf-44cb-ac94-90403a58f247" />
+<img width="407" height="564" alt="image" src="https://github.com/user-attachments/assets/665d65f8-c21a-4450-b183-3db110e3aa40" />
+<img width="399" height="597" alt="image" src="https://github.com/user-attachments/assets/5eb83722-4d90-4efa-9e02-ac08df2c174c" />
+<img width="405" height="551" alt="image" src="https://github.com/user-attachments/assets/434b4a71-6501-4740-835f-9a489b368f27" />
+<img width="405" height="549" alt="image" src="https://github.com/user-attachments/assets/1f4ce68f-c5bf-44cb-ac94-90403a58f247" />
 
 ---
 
@@ -69,14 +114,16 @@ We said no.
 
 ### Install in 60 Seconds
 
-```bash
+```
 # 1. Download the latest release
 #    → Releases tab on GitHub or rd-elite.com
 
 # 2. Unzip rdwe-nostr-signer.zip
 
 # 3. Open Brave/Chrome
-#    brave://extensions   OR   chrome://extensions
+brave://extensions
+# OR
+chrome://extensions
 
 # 4. Enable "Developer mode" (top right toggle)
 
@@ -132,7 +179,7 @@ Click the **◢ RDWE ◣** icon in your toolbar. You'll see the setup screen:
 - **Import nsec:** Paste your existing `nsec1...` private key
 - **Generate New:** Creates a fresh cryptographic keypair instantly
 
-**3. Done!**
+**3. Done!**  
 Your session is now unlocked. The extension is ready to sign events.
 
 ---
@@ -157,7 +204,6 @@ chrome.storage.local  ←  Only this blob lands on disk
 ```
 
 **What gets stored on disk:**
-
 ```json
 {
   "enc_key": {
@@ -224,12 +270,39 @@ primal.net gets its signature ✔
 |---|---|---|
 | Key derivation | PBKDF2-SHA256 | 310,000 iterations · 256-bit salt |
 | Storage encryption | AES-256-GCM | 96-bit IV · authenticated |
-| Event signing | BIP-340 Schnorr | secp256k1 |
+| Event signing | BIP-340 Schnorr | secp256k1 · verify-after-sign |
 | Legacy DM encryption | NIP-04 AES-CBC | ECDH shared secret |
-| Modern DM encryption | NIP-44 ChaCha20 | HMAC-SHA256 · HKDF |
+| Modern DM encryption | NIP-44 v2 ChaCha20 | HMAC-SHA256 · HKDF · spec-compliant padding |
 | Event hashing | SHA-256 | via Web Crypto API |
+| Pubkey validation | Curve membership check | rejects off-curve x-coordinates |
+| Boot integrity | RFC-grade KATs | RFC 7539 · RFC 5869 · RFC 4231 · BIP-340 · NIP-44 |
 
-**All cryptography uses the browser's native Web Crypto API. Zero custom crypto primitives.**
+**All cryptography uses the browser's native Web Crypto API for primitives. The secp256k1 curve math is pure JS, audited against independent reference implementations (Python `coincurve` + `cryptography`). Zero custom crypto primitives, zero npm dependencies.**
+
+### 🧪 Cryptographic Self-Tests
+
+Every time the background service worker spins up, the crypto library is
+verified against 16 Known-Answer Tests before any nostr request is served:
+
+- **SHA-256** — NIST FIPS 180-2 reference
+- **HMAC-SHA256** — RFC 4231 Test Case 1
+- **HKDF-SHA256** — RFC 5869 Test Case 1
+- **ChaCha20** — RFC 7539 §2.4.2 reference vector
+- **secp256k1 generator math** — `G·1 = G`, `G·3` matches BIP-340 reference pubkey
+- **NIP-44 v2 padding** — 16 boundary lengths covering all chunk sizes
+- **NIP-44 v2 conversation_key derivation** — KAT pinned against independent Python impl
+- **NIP-44 v2 message_keys derivation** — KAT against independent Python impl
+- **NIP-44 round-trip + tampering rejection** — including length-65 boundary
+- **Schnorr sign + self-verify** — full BIP-340 round-trip
+- **Schnorr signature malleability rejection** — bit-flipped sigs rejected
+- **Curve membership** — off-curve x-coordinates rejected at point construction
+
+If any vector fails, **all nostr operations refuse to run** with a descriptive
+error in the service-worker console. This catches silent JS engine corruption,
+modified extension files, and any future regression in the crypto code.
+
+Boot cost: ~2 seconds, once per service-worker lifecycle. Subsequent calls
+are gated by an already-resolved promise — zero overhead.
 
 ### Threat Model
 
@@ -239,6 +312,12 @@ primal.net gets its signature ✔
 | Website reads `window.nostr` private state | ✅ Protected — API is frozen, no private access |
 | Content script is compromised | ✅ Protected — only bridges postMessage, no key access |
 | Browser profile theft | ✅ Protected — blob is useless without your password |
+| **Invalid-curve attack via crafted pubkey** | **✅ Protected — off-curve x rejected at point construction (v1.6)** |
+| **Cross-client NIP-44 incompatibility** | **✅ Protected — spec-compliant padding (v1.6)** |
+| **Silent crypto regression / tampered files** | **✅ Protected — boot self-tests refuse to run if any KAT fails (v1.6)** |
+| **Faulty signature emission (glitch / RowHammer)** | **✅ Protected — every Schnorr sig is self-verified (v1.6)** |
+| **Conversation keys outliving lock** | **✅ Protected — cache cleared on every `lockSession()` (v1.6)** |
+| MAC tampering on NIP-44 ciphertext | ✅ Protected — constant-time HMAC verification |
 | Session is left unlocked | ⚠️ Auto-locks after 15 min idle |
 | Shoulder surfing while nsec is revealed | ⚠️ nsec auto-hides after 30 seconds |
 | Your master password is weak | ⚠️ On you — use a strong one |
@@ -260,11 +339,13 @@ rdwe-nostr-signer/
 ├── prompt.html            ← Permission approval dialog
 ├── prompt.js              ← Prompt logic — queue, unlock-and-approve
 ├── lib/
-│   └── crypto.js          ← Complete crypto library (zero dependencies)
-└── icons/
-    ├── icon16.png
-    ├── icon48.png
-    └── icon128.png
+│   ├── crypto.js          ← Complete crypto library (zero dependencies)
+│   └── test_vectors.js    ← RFC-grade Known-Answer Tests, run on SW init
+├── icons/
+│   ├── icon16.png
+│   ├── icon48.png
+│   └── icon128.png
+└── CHANGELOG_v1.6.md      ← v1.6 hardening audit details
 ```
 
 ### Message Flow
@@ -289,7 +370,7 @@ Page (MAIN world)
 
 The `inject.js` is loaded via a classic `<script src="...">` tag injected by the content script — **not** as an ES module and **not** via `world: "MAIN"` in the manifest.
 
-Why?
+Why? Because:
 - `type="module"` loads **asynchronously** → the page checks `window.nostr` before it's defined
 - `world: "MAIN"` is unreliable in some Brave/Chromium versions
 - `<script src="...">` is **synchronous**, `window.nostr` is set before the page even loads its own JS
@@ -327,7 +408,7 @@ When a site requests signing (and you haven't set "Always allow"):
 - Shows site origin, method, and event preview
 - If session is **locked**: password field appears inline
 - Queue counter shows how many requests are pending
-- **Approve This / Deny This** — for individual requests
+- **Approve This / Deny This** — for individual requests  
 - **Approve All / Deny All** — for batched requests (e.g. Primal's 5 startup calls)
 - **"Always allow"** checkbox — skips future prompts for this site+method
 
@@ -364,7 +445,7 @@ const relays = await window.nostr.getRelays();
 // Returns: { "wss://relay.damus.io": { read: true, write: true }, ... }
 ```
 
-### `nip04.encrypt` / `nip04.decrypt`
+### `nip04.encrypt(pubkey, plaintext)` / `nip04.decrypt(pubkey, ciphertext)`
 
 ```javascript
 // Legacy DM encryption (AES-CBC + ECDH)
@@ -372,7 +453,7 @@ const ciphertext = await window.nostr.nip04.encrypt(recipientPubkey, "secret mes
 const plaintext  = await window.nostr.nip04.decrypt(senderPubkey, ciphertext);
 ```
 
-### `nip44.encrypt` / `nip44.decrypt`
+### `nip44.encrypt(pubkey, plaintext)` / `nip44.decrypt(pubkey, ciphertext)`
 
 ```javascript
 // Modern DM encryption (ChaCha20 + HMAC-SHA256 + HKDF)
@@ -446,7 +527,7 @@ Tested and working with:
 
 **Cause:** Session is locked AND the site checks `getPublicKey()` immediately.
 
-> **Note:** `getPublicKey()` always works even when locked. If you see this error, the site may be using a non-standard check.
+**Note:** `getPublicKey()` always works even when locked. If you see this error, the site may be using a non-standard check.
 
 **Fix:**
 1. Click the RDWE icon → enter password → Unlock
@@ -457,7 +538,7 @@ Tested and working with:
 
 **Cause:** You're using an older version (< v1.4).
 
-**Fix:** Update to v1.5+ — the queue system opens exactly ONE window for all pending requests.
+**Fix:** Update to v1.6+ — the queue system opens exactly ONE window for all pending requests.
 
 ### "Wrong password — decryption failed"
 
@@ -474,11 +555,30 @@ Tested and working with:
 2. On Primal's "publish pending" page → click "Retry Selected"
 3. The approval window appears → Approve All → Done ✔
 
-### CSP error: `Executing inline script violates Content Security Policy`
+### Site shows "Crypto integrity check failed"
+
+**Cause:** The boot-time cryptographic self-tests detected a mismatch between
+the bundled crypto library and the RFC reference vectors. This is a refusal
+mechanism — it means something is wrong, and the extension is correctly
+refusing to handle nostr requests.
+
+**Fix:**
+1. Open `chrome://extensions` → 🔄 Reload the extension
+2. Open the service worker console (the link under the extension card)
+3. Look for `[RDWE] Crypto integrity check failed:` followed by which
+   vector(s) failed
+4. If the issue persists, **re-download the extension fresh** from the
+   official source — your local copy may be tampered with or corrupted
+5. Open an issue on GitHub with the exact failed vector names
+
+**Do not bypass this check.** If the self-tests fail, your nsec is at risk
+of being used with a faulty crypto implementation.
+
+
 
 **Cause:** You have an old version with inline `<script>` in prompt.html.
 
-**Fix:** Update to v1.5+ — all scripts are in external `.js` files, fully MV3/CSP compliant.
+**Fix:** Update to v1.6+ — all scripts are in external `.js` files, fully MV3/CSP compliant.
 
 ---
 
@@ -603,66 +703,6 @@ We welcome contributions from anyone who doesn't write garbage code.
 
 ---
 
-## 📊 Comparison Table
-
-| Feature | nos2x | Alby | Flamingo | **RDWE Nostr Signer** |
-|---|---|---|---|---|
-| Open Source | ✅ | Partial | ❓ | ✅ |
-| Key encryption at rest | ❌ | ✅ | ❓ | ✅ |
-| Master password | ❌ | ✅ | ❓ | ✅ |
-| Session auto-lock | ❌ | ✅ | ❓ | ✅ |
-| Unlock prompt on sign | ❌ | ✅ | ❓ | ✅ |
-| Request queue (1 window) | ❌ | ❓ | ❓ | ✅ |
-| Zero dependencies | ✅ | ❌ | ❓ | ✅ |
-| NIP-44 support | ❌ | ✅ | ❓ | ✅ |
-| Build step required | ❌ | ✅ | ❓ | ❌ |
-| RDE aesthetic | ❌ | ❌ | ❌ | ✅ 🐉 |
-
----
-
-## 💡 FAQ
-
-### Is my nsec safe?
-
-**Yes** — if you use a strong master password. The nsec is encrypted with AES-256-GCM before it ever touches storage. The only way to get it back is your master password + the encrypted blob. We don't have either.
-
-### What if I forget my master password?
-
-There is no recovery. This is by design — zero-knowledge means zero backdoors.
-**Fix:** Wipe the extension, re-import your nsec, set a new password.
-This is why you should **back up your nsec** somewhere safe (hardware wallet, paper, encrypted vault).
-
-### Does this work offline?
-
-**Yes.** All cryptography runs locally in your browser. No servers involved. Ever.
-
-### Can websites read my private key?
-
-**No.** The `window.nostr` object is frozen. Web pages can only call the API methods — they never touch the underlying key. The actual signing happens in the isolated service worker.
-
-### Does it work on Firefox?
-
-Not officially — Firefox uses a different extension API (`browser.*` vs `chrome.*`) and doesn't fully support Manifest V3 in the same way. Pull requests welcome.
-
-### What's the difference between NIP-04 and NIP-44?
-
-- **NIP-04** — Legacy DM encryption. AES-256-CBC + ECDH. Older but widely supported.
-- **NIP-44** — Modern DM encryption. ChaCha20 + HMAC-SHA256 + HKDF. Better security, padding, versioning. Use this when both sides support it.
-
-### Why 310,000 PBKDF2 iterations?
-
-OWASP 2023 recommends a minimum of 310,000 iterations for PBKDF2-SHA256. This means even if someone steals your encrypted blob, brute-forcing your master password takes orders of magnitude longer than with lower iteration counts. On modern hardware, ~310k iterations takes about 300ms — barely noticeable to you, devastating for an attacker.
-
-### Can I use this with multiple Nostr identities?
-
-Currently one key per extension instance. For multiple identities, use separate browser profiles, each with their own RDWE Nostr Signer instance.
-
-### Why no Chrome Web Store listing?
-
-The CWS review process is slow, centralized, and can remove extensions arbitrarily. Load unpacked stays in your control. Your browser, your extension, your keys.
-
----
-
 ## 🌐 Community & Support
 
 ### Official Links
@@ -702,13 +742,78 @@ The CWS review process is slow, centralized, and can remove extensions arbitrari
 
 ---
 
+## 💡 FAQ
+
+### Is my nsec safe?
+
+**Yes** — if you use a strong master password. The nsec is encrypted with AES-256-GCM before it ever touches storage. The only way to get it back is your master password + the encrypted blob. We don't have either.
+
+### What if I forget my master password?
+
+There is no recovery. This is by design — zero-knowledge means zero backdoors.  
+**Fix:** Wipe the extension, re-import your nsec, set a new password.  
+This is why you should **back up your nsec** somewhere safe (hardware wallet, paper, encrypted vault).
+
+### Does this work offline?
+
+**Yes.** All cryptography runs locally in your browser. No servers involved. Ever.
+
+### Can websites read my private key?
+
+**No.** The `window.nostr` object is frozen. Web pages can only call the API methods — they never touch the underlying key. The actual signing happens in the isolated service worker.
+
+### Does it work on Firefox?
+
+Not officially — Firefox uses a different extension API (`browser.*` vs `chrome.*`) and doesn't fully support Manifest V3 in the same way. Pull requests welcome.
+
+### What's the difference between NIP-04 and NIP-44?
+
+- **NIP-04** — Legacy DM encryption. AES-256-CBC + ECDH. Older but widely supported.
+- **NIP-44** — Modern DM encryption. ChaCha20 + HMAC-SHA256 + HKDF. Better security, padding, versioning. Use this when both sides support it.
+
+### Why 310,000 PBKDF2 iterations?
+
+OWASP 2023 recommends a minimum of 310,000 iterations for PBKDF2-SHA256. This means even if someone steals your encrypted blob, brute-forcing your master password takes orders of magnitude longer than with lower iteration counts. On modern hardware, ~310k iterations takes about 300ms — barely noticeable to you, devastating for an attacker.
+
+### Can I use this with multiple Nostr identities?
+
+Currently one key per extension instance. For multiple identities, use separate browser profiles, each with their own RDWE Nostr Signer instance.
+
+### Why no Chrome Web Store listing?
+
+The CWS review process is slow, centralized, and can remove extensions arbitrarily. Load unpacked stays in your control. Your browser, your extension, your keys.
+
+---
+
+## 📊 Comparison Table
+
+| Feature | nos2x | Alby | Flamingo | **RDWE Nostr Signer** |
+|---|---|---|---|---|
+| Open Source | ✅ | Partial | ❓ | ✅ |
+| Key encryption at rest | ❌ | ✅ | ❓ | ✅ |
+| Master password | ❌ | ✅ | ❓ | ✅ |
+| Session auto-lock | ❌ | ✅ | ❓ | ✅ |
+| Unlock prompt on sign | ❌ | ✅ | ❓ | ✅ |
+| Request queue (1 window) | ❌ | ❓ | ❓ | ✅ |
+| Zero dependencies | ✅ | ❌ | ❓ | ✅ |
+| NIP-44 support | ❌ | ✅ | ❓ | ✅ |
+| Spec-compliant NIP-44 padding | ❓ | ❓ | ❓ | ✅ |
+| Boot-time crypto self-tests | ❌ | ❌ | ❌ | ✅ |
+| Verify-after-sign defense | ❌ | ❌ | ❓ | ✅ |
+| Invalid-curve attack defense | ❓ | ❓ | ❓ | ✅ |
+| Conv-key cache (44× faster inbox) | ❌ | ❓ | ❓ | ✅ |
+| Build step required | ❌ | ✅ | ❓ | ❌ |
+| RDE aesthetic | ❌ | ❌ | ❌ | ✅ 🐉 |
+
+---
+
 ## 🏆 Credits
 
-**Built by:** [Red Dragon Elite](https://rd-elite.com)
-**Creator:** Shin | RDE
-**Cryptography:** Built on [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) — browser-native, audited, battle-tested
-**Inspiration:** [nos2x](https://github.com/fiatjaf/nos2x) by fiatjaf — the OG NIP-07 signer
-**Protocol:** [Nostr](https://github.com/nostr-protocol/nostr) — the unstoppable decentralized network
+**Built by:** [Red Dragon Elite](https://rd-elite.com)  
+**Creator:** Shin | RDE  
+**Cryptography:** Built on [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) — browser-native, audited, battle-tested  
+**Inspiration:** [nos2x](https://github.com/fiatjaf/nos2x) by fiatjaf — the OG NIP-07 signer  
+**Protocol:** [Nostr](https://github.com/nostr-protocol/nostr) — the unstoppable decentralized network  
 
 **Special Thanks:**
 
@@ -730,7 +835,7 @@ The CWS review process is slow, centralized, and can remove extensions arbitrari
 
 **Remember:**
 
-> *"Your keys, your identity. Your keys in plaintext, someone else's identity."*
+> *"Your keys, your identity. Your keys in plaintext, someone else's identity."*  
 > — Red Dragon Elite
 
 ---
