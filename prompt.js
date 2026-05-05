@@ -1,5 +1,5 @@
 /**
- * ◢ RDWE Nostr Signer ◣ — Prompt Script v1.5
+ * ◢ RDWE Nostr Signer ◣ — Prompt Script v1.6
  * Handles: Unlock (if locked) + Approve/Deny in one window.
  */
 'use strict';

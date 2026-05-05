@@ -1,5 +1,5 @@
 /**
- * ◢ RDWE Nostr Signer ◣ — Background Service Worker v1.5
+ * ◢ RDWE Nostr Signer ◣ — Background Service Worker v1.6
  *
  * SECURITY MODEL:
  *   - nsec stored AES-256-GCM encrypted (PBKDF2 310k iterations)
@@ -8,6 +8,10 @@
  *   - Session auto-locks after 15min idle
  *   - When locked + site requests signing → unlock popup appears
  *     user enters password, unlocks, request proceeds seamlessly
+ *
+ * v1.6 HARDENING:
+ *   - Crypto self-tests run on init; all nostr ops refuse if any vector fails
+ *   - NIP-44 conversation-key LRU cache (in-memory, cleared on lock)
  */
 
 import {
@@ -16,8 +20,37 @@ import {
   hexToNsec,
   nip04Encrypt, nip04Decrypt,
   nip44Encrypt, nip44Decrypt,
+  nip44GetConversationKey, nip44EncryptWithConvKey, nip44DecryptWithConvKey,
   encryptPrivKey, decryptPrivKey
 } from './lib/crypto.js';
+import { runSelfTests } from './lib/test_vectors.js';
+
+// ── Crypto integrity gate ─────────────────────────────────
+// Runs once at SW load. If any KAT fails, we refuse all nostr operations.
+// This catches: silent JS engine corruption, modified extension files,
+// and any future regression in crypto.js.
+let _cryptoBroken    = false;
+let _cryptoBrokenMsg = '';
+const _cryptoReady   = (async () => {
+  try {
+    const r = await runSelfTests();
+    if (!r.ok) {
+      _cryptoBroken    = true;
+      _cryptoBrokenMsg = `Crypto integrity check failed: ${r.fail}/${r.total} vectors failed. ${r.errors.join(' | ')}`;
+      console.error('[RDWE]', _cryptoBrokenMsg);
+    } else {
+      console.log(`[RDWE] Crypto self-tests: ${r.pass}/${r.total} passed.`);
+    }
+  } catch (e) {
+    _cryptoBroken    = true;
+    _cryptoBrokenMsg = `Crypto self-tests threw: ${e.message}`;
+    console.error('[RDWE]', _cryptoBrokenMsg);
+  }
+})();
+
+function assertCryptoOk() {
+  if (_cryptoBroken) throw new Error(_cryptoBrokenMsg || 'Crypto unavailable');
+}
 
 // ── Session ──────────────────────────────────────────────
 let _priv      = null;
@@ -26,7 +59,40 @@ const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 min
 
 function resetLock() {
   clearTimeout(_lockTimer);
-  _lockTimer = setTimeout(() => { _priv = null; }, SESSION_TIMEOUT);
+  _lockTimer = setTimeout(() => { lockSession(); }, SESSION_TIMEOUT);
+}
+
+function lockSession() {
+  _priv = null;
+  convKeyCache.clear();   // ← drop derived keys when we lock
+  clearTimeout(_lockTimer);
+}
+
+// ── NIP-44 Conversation-Key LRU Cache ─────────────────────
+// Each NIP-44 op without cache costs: 1× ECDH point-mul (~slow BigInt) + HKDF-Extract.
+// For an inbox of N DMs from the same peer: N× the same op. Cache flips it to 1.
+//
+// Stored only in memory; cleared on lock; never persisted.
+// LRU via Map insertion order: re-set on hit moves to end.
+const CONV_KEY_CACHE_MAX = 64;
+const convKeyCache = new Map(); // pubkey_hex → Uint8Array(32)
+
+async function getConvKey(privHex, pubHex) {
+  const hit = convKeyCache.get(pubHex);
+  if (hit) {
+    // Refresh LRU position
+    convKeyCache.delete(pubHex);
+    convKeyCache.set(pubHex, hit);
+    return hit;
+  }
+  const key = await nip44GetConversationKey(privHex, pubHex);
+  if (convKeyCache.size >= CONV_KEY_CACHE_MAX) {
+    // Evict oldest (first entry in insertion order)
+    const oldest = convKeyCache.keys().next().value;
+    convKeyCache.delete(oldest);
+  }
+  convKeyCache.set(pubHex, key);
+  return key;
 }
 
 // ── Storage helpers ───────────────────────────────────────
@@ -105,6 +171,10 @@ function enqueue(origin, method, params) {
 // ── Core nostr handler ────────────────────────────────────
 async function handle({ method, params, origin }) {
 
+  // Crypto integrity gate — wait for self-tests, then refuse if any failed.
+  await _cryptoReady;
+  assertCryptoOk();
+
   // getPublicKey — always works, no unlock needed
   if (method === 'getPublicKey') {
     const pub = _priv ? getPublicKey(_priv) : await getPubKey();
@@ -157,8 +227,18 @@ async function handle({ method, params, origin }) {
     }
     case 'nip04_encrypt': { const r=await nip04Encrypt(_priv,params.pubkey,params.plaintext);  logEv(origin,'nip04.enc','ok'); return r; }
     case 'nip04_decrypt': { const r=await nip04Decrypt(_priv,params.pubkey,params.ciphertext); logEv(origin,'nip04.dec','ok'); return r; }
-    case 'nip44_encrypt': { const r=await nip44Encrypt(_priv,params.pubkey,params.plaintext);  logEv(origin,'nip44.enc','ok'); return r; }
-    case 'nip44_decrypt': { const r=await nip44Decrypt(_priv,params.pubkey,params.ciphertext); logEv(origin,'nip44.dec','ok'); return r; }
+    case 'nip44_encrypt': {
+      const ck = await getConvKey(_priv, params.pubkey);
+      const r  = await nip44EncryptWithConvKey(ck, params.plaintext);
+      logEv(origin,'nip44.enc','ok');
+      return r;
+    }
+    case 'nip44_decrypt': {
+      const ck = await getConvKey(_priv, params.pubkey);
+      const r  = await nip44DecryptWithConvKey(ck, params.ciphertext);
+      logEv(origin,'nip44.dec','ok');
+      return r;
+    }
     default: throw new Error(`Unknown method: ${method}`);
   }
 }
@@ -273,7 +353,7 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
 
   // ── Popup: lock ──
   if (msg.type === 'lock') {
-    _priv = null; clearTimeout(_lockTimer);
+    lockSession();
     reply({ ok: true }); return false;
   }
 
@@ -308,7 +388,7 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
 
   // ── Popup: delete everything ──
   if (msg.type === 'delete_key') {
-    _priv = null; clearTimeout(_lockTimer);
+    lockSession();
     ls.remove(['enc_key','pubkey','permissions','relays']).then(() => reply({ ok: true }));
     return true;
   }
