@@ -1,5 +1,5 @@
 /**
- * ◢ RDWE Nostr Signer ◣ — Background Service Worker v1.6
+ * ◢ RDWE Nostr Signer ◣ — Background Service Worker v1.6.1
  *
  * SECURITY MODEL:
  *   - nsec stored AES-256-GCM encrypted (PBKDF2 310k iterations)
@@ -52,20 +52,82 @@ function assertCryptoOk() {
   if (_cryptoBroken) throw new Error(_cryptoBrokenMsg || 'Crypto unavailable');
 }
 
+// ── storage.session polyfill ──────────────────────────────
+// Moved ahead of the Session block below (v1.6.1) — that code now relies
+// on chrome.storage.session existing from the very first line it runs.
+// Note: on a browser genuinely missing chrome.storage.session, this
+// in-memory fallback can't survive SW restarts either (same limitation
+// this whole patch exists to fix) — it exists only so we fail soft
+// instead of throwing, not as a real substitute. Real Chrome has shipped
+// storage.session natively since Chrome 102, so this path is effectively
+// dead code for this extension's actual target, kept defensively.
+if (!chrome.storage.session) {
+  const _m = {};
+  chrome.storage.session = {
+    get:    k => Promise.resolve(typeof k==='string' ? {[k]:_m[k]} : Object.fromEntries((Array.isArray(k)?k:Object.keys(k)).map(x=>[x,_m[x]]))),
+    set:    o => { Object.assign(_m,o); return Promise.resolve(); },
+    remove: k => { (Array.isArray(k)?k:[k]).forEach(x=>delete _m[x]); return Promise.resolve(); }
+  };
+}
+
 // ── Session ──────────────────────────────────────────────
+// IMPORTANT (v1.6.1 fix): MV3 service workers are killed by Chrome after
+// ~30s of inactivity and respawned fresh on the next message. Plain `let`
+// variables like _priv do NOT survive that — they silently reset to their
+// initial value, which used to make "remembered" per-origin permissions
+// look broken: the permission itself (chrome.storage.local) was fine, but
+// `if (!_priv || !hasPerm)` still tripped because _priv kept dying between
+// requests, even seconds apart, e.g. across a normal page reload.
+//
+// Fix: persist the unlocked key + a last-activity timestamp to
+// chrome.storage.session — Chrome's storage area built specifically for
+// this problem (survives SW restarts, stays memory-only, auto-clears on
+// browser close, never touches disk). Security properties are unchanged
+// from before; this only fixes *where* the same in-memory-only secret
+// lives so it survives the SW's own restarts, not new persistence.
 let _priv      = null;
 let _lockTimer = null;
 const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 min
 
+async function persistSessionKey() {
+  try { await chrome.storage.session.set({ sess_priv: _priv, sess_activity: Date.now() }); } catch (_) {}
+}
+async function touchSessionActivity() {
+  try { await chrome.storage.session.set({ sess_activity: Date.now() }); } catch (_) {}
+}
+async function clearPersistedSession() {
+  try { await chrome.storage.session.remove(['sess_priv', 'sess_activity']); } catch (_) {}
+}
+
+// Runs once per SW wake-up, before any request is handled. If a still-valid
+// (within SESSION_TIMEOUT) unlocked session was persisted from before this
+// particular SW instance was killed, restore it — this is what makes
+// "remember this site" actually behave like it sounds instead of
+// re-prompting on almost every request.
+const _sessionRestored = (async () => {
+  try {
+    const { sess_priv, sess_activity } = await chrome.storage.session.get(['sess_priv', 'sess_activity']);
+    if (sess_priv && sess_activity && (Date.now() - sess_activity) < SESSION_TIMEOUT) {
+      _priv = sess_priv;
+      resetLock();
+    } else if (sess_priv) {
+      // Stale beyond the idle timeout — don't silently resurrect it.
+      await clearPersistedSession();
+    }
+  } catch (_) {}
+})();
+
 function resetLock() {
   clearTimeout(_lockTimer);
   _lockTimer = setTimeout(() => { lockSession(); }, SESSION_TIMEOUT);
+  touchSessionActivity();
 }
 
 function lockSession() {
   _priv = null;
   convKeyCache.clear();   // ← drop derived keys when we lock
   clearTimeout(_lockTimer);
+  clearPersistedSession();
 }
 
 // ── NIP-44 Conversation-Key LRU Cache ─────────────────────
@@ -108,16 +170,6 @@ async function grantPerm(origin, method) {
   if (!p[origin]) p[origin] = {};
   p[origin][method] = 'always';
   await setPerms(p);
-}
-
-// ── storage.session polyfill ──────────────────────────────
-if (!chrome.storage.session) {
-  const _m = {};
-  chrome.storage.session = {
-    get:    k => Promise.resolve(typeof k==='string' ? {[k]:_m[k]} : Object.fromEntries((Array.isArray(k)?k:Object.keys(k)).map(x=>[x,_m[x]]))),
-    set:    o => { Object.assign(_m,o); return Promise.resolve(); },
-    remove: k => { (Array.isArray(k)?k:[k]).forEach(x=>delete _m[x]); return Promise.resolve(); }
-  };
 }
 
 // ── Activity log ──────────────────────────────────────────
@@ -174,6 +226,13 @@ async function handle({ method, params, origin }) {
   // Crypto integrity gate — wait for self-tests, then refuse if any failed.
   await _cryptoReady;
   assertCryptoOk();
+
+  // Session restore gate — if this SW instance just woke up fresh, this
+  // is what re-populates _priv from a still-valid persisted session
+  // before we check it below. Without this, "remember this site" looked
+  // broken because _priv was almost always null by the time a request
+  // arrived, even though the actual permission was saved correctly.
+  await _sessionRestored;
 
   // getPublicKey — always works, no unlock needed
   if (method === 'getPublicKey') {
@@ -254,24 +313,28 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
 
   // ── Prompt: get next queued item ──
   if (msg.type === 'prompt_get_next') {
-    const next = queue.find(r => r.status === 'pending');
-    if (!next) { reply({ item: null }); return false; }
-    reply({
-      item: {
-        id:       next.id,
-        origin:   next.origin,
-        method:   next.method,
-        params:   next.params,
-        total:    queue.filter(r => r.status === 'pending').length,
-        locked:   !_priv,     // ← tells prompt whether to show password field
-      }
-    });
-    return false;
+    (async () => {
+      await _sessionRestored;
+      const next = queue.find(r => r.status === 'pending');
+      if (!next) { reply({ item: null }); return; }
+      reply({
+        item: {
+          id:       next.id,
+          origin:   next.origin,
+          method:   next.method,
+          params:   next.params,
+          total:    queue.filter(r => r.status === 'pending').length,
+          locked:   !_priv,     // ← tells prompt whether to show password field
+        }
+      });
+    })();
+    return true;
   }
 
   // ── Prompt: respond to one item (with optional unlock) ──
   if (msg.type === 'prompt_respond') {
     (async () => {
+      await _sessionRestored;
       const item = queue.find(r => r.id === msg.id && r.status === 'pending');
       if (!item) { reply({ hasMore: false }); return; }
 
@@ -281,6 +344,7 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
           const blob = await getBlob();
           _priv = await decryptPrivKey(blob, msg.password);
           resetLock();
+          await persistSessionKey();
         } catch(e) {
           reply({ err: 'Wrong password — decryption failed' });
           return;
@@ -303,11 +367,13 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
   // ── Prompt: approve all ──
   if (msg.type === 'prompt_approve_all') {
     (async () => {
+      await _sessionRestored;
       if (msg.password && !_priv) {
         try {
           const blob = await getBlob();
           _priv = await decryptPrivKey(blob, msg.password);
           resetLock();
+          await persistSessionKey();
         } catch(e) { reply({ err: 'Wrong password' }); return; }
       }
       queue.filter(r => r.status === 'pending').forEach(r => {
@@ -334,7 +400,11 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
 
   // ── Popup: status ──
   if (msg.type === 'session_status') {
-    hasKey().then(has => reply({ hasKey: has, unlocked: !!_priv, pubkey: _priv ? getPublicKey(_priv) : null }));
+    (async () => {
+      await _sessionRestored;
+      const has = await hasKey();
+      reply({ hasKey: has, unlocked: !!_priv, pubkey: _priv ? getPublicKey(_priv) : null });
+    })();
     return true;
   }
 
@@ -345,6 +415,7 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
       try {
         _priv = await decryptPrivKey(blob, msg.password);
         resetLock();
+        await persistSessionKey();
         reply({ ok: true, pubKeyHex: getPublicKey(_priv) });
       } catch(e) { reply({ err: e.message }); }
     });
@@ -363,6 +434,7 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
       const pub = getPublicKey(msg.privKeyHex);
       await ls.set({ enc_key: blob, pubkey: pub });
       _priv = msg.privKeyHex; resetLock();
+      await persistSessionKey();
       reply({ ok: true, pubKeyHex: pub });
     }).catch(e => reply({ err: e.message }));
     return true;
@@ -375,6 +447,7 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
       const pub = getPublicKey(priv);
       await ls.set({ enc_key: blob, pubkey: pub });
       _priv = priv; resetLock();
+      await persistSessionKey();
       reply({ ok: true, privKeyHex: priv, pubKeyHex: pub });
     }).catch(e => reply({ err: e.message }));
     return true;
@@ -382,8 +455,12 @@ chrome.runtime.onMessage.addListener((msg, _s, reply) => {
 
   // ── Popup: export nsec ──
   if (msg.type === 'export_nsec') {
-    if (!_priv) return reply({ err: 'Session locked' });
-    reply({ nsec: hexToNsec(_priv) }); return false;
+    (async () => {
+      await _sessionRestored;
+      if (!_priv) { reply({ err: 'Session locked' }); return; }
+      reply({ nsec: hexToNsec(_priv) });
+    })();
+    return true;
   }
 
   // ── Popup: delete everything ──

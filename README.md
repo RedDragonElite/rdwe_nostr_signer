@@ -1,6 +1,6 @@
 # 🐉 RDWE Nostr Signer
 
-[![Version](https://img.shields.io/badge/version-1.6.0-red?style=for-the-badge)](https://github.com/RedDragonElite/rdwe-nostr-signer)
+[![Version](https://img.shields.io/badge/version-1.6.1-red?style=for-the-badge)](https://github.com/RedDragonElite/rdwe-nostr-signer)
 [![License](https://img.shields.io/badge/license-RDE%20Black%20Flag-black?style=for-the-badge)](LICENSE)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-blue?style=for-the-badge)](https://developer.chrome.com/docs/extensions/mv3/)
 [![Nostr](https://img.shields.io/badge/Nostr-NIP--07-purple?style=for-the-badge)](https://github.com/nostr-protocol/nips/blob/master/07.md)
@@ -20,7 +20,43 @@
 
 ---
 
-## 🆕 What's New in v1.6.0
+## 🆕 What's New in v1.6.1
+
+Reliability patch: fixes the "it asks for approval every single time, remembered
+permissions don't stick" behavior some users were seeing.
+
+### 🔴 Bug fix — remembered permissions now actually survive
+
+Manifest V3 kills and respawns the background service worker after roughly
+30 seconds of inactivity — far more often than most people expect, easily
+within the gap of a single page reload. The unlocked-session state
+(`_priv`, the decrypted key in memory) used to live only in a plain JS
+variable, so it reset to "locked" on every one of those respawns — even
+though the actual per-site permission ("Always allow") was being saved
+correctly the whole time. Net effect: the approval prompt kept reappearing
+regardless of what you'd already approved.
+
+**Fix:** the unlocked session (key + last-activity timestamp) is now
+persisted to `chrome.storage.session` — the storage area Chrome built
+specifically for this problem. It survives service-worker restarts, stays
+memory-only (never touches disk), and clears automatically when the
+browser closes. Same security properties as before; it just now correctly
+survives the service worker's own restarts instead of accidentally
+resetting every time one happens. The 15-minute idle auto-lock is
+unaffected — a session older than that is still discarded, not silently
+resurrected.
+
+Verified with a restart simulation (two separately-booted worker
+instances sharing one storage backend, modeling exactly what a real SW
+restart does): permission correctly persists across the simulated
+restart, and correctly still expires after 15 minutes of simulated idle
+time either way.
+
+See [CHANGELOG_v1.6.1.md](./CHANGELOG_v1.6.1.md) for the full write-up.
+
+---
+
+## What's New in v1.6.0
 
 This release is a security & performance hardening pass. Two real bugs fixed,
 four hardening features added. All changes are verified by **16 RFC-grade
@@ -84,10 +120,11 @@ We said no.
 
 - 🔐 **AES-256-GCM Encryption** — nsec encrypted with your master password before storage
 - 🔒 **Session Locking** — auto-locks after 15 min idle, zero plaintext in memory
+- 🔄 **Session Persistence** — remembered unlock/approval state survives Manifest V3 service-worker restarts, so "Always allow" actually behaves like it sounds *(v1.6.1)*
 - ⚡ **Seamless Unlock Flow** — sites never error out; unlock popup appears when needed
 - 📋 **Smart Request Queue** — multiple sign requests batched in ONE window
 - 🌐 **Full NIP-07 Support** — `getPublicKey`, `signEvent`, `getRelays`, NIP-04, NIP-44
-- 🔑 **getPublicKey Always Works** — even when locked (pubkey is public — duh)
+- 🔑 **getPublicKey Always Works** — even when locked, and never shows an approval prompt (pubkey is public — duh)
 - 🛡️ **Per-Origin Permissions** — "Always allow" per site per method, fully revocable
 - 🐉 **RDE Terminal Aesthetic** — because ugly tools deserve to die
 - 📡 **Relay Management** — configure read/write relays right in the popup
@@ -225,20 +262,32 @@ Browser Start
     ↓
 Extension Loads → Session LOCKED
     ↓
-You click icon → Enter master password
+You click icon (or a site requests signing) → Enter master password
     ↓
 Password → PBKDF2 → AES key → Decrypt blob → nsec in RAM
     ↓
 Session UNLOCKED (15 min idle timeout)
     ↓
-After 15 min inactivity → nsec wiped from memory
+Service worker gets recycled by the browser (routine, happens often)
     ↓
-Session LOCKED again
+Session state is restored from chrome.storage.session — still unlocked,
+still respecting the original 15-minute idle window (v1.6.1)
+    ↓
+After 15 min of no activity → nsec wiped from memory AND from
+chrome.storage.session → Session LOCKED again
+    ↓
+Browser fully closes → chrome.storage.session clears unconditionally →
+Session LOCKED on next launch, always
 ```
 
-- nsec lives **only in the service worker's RAM** during an unlocked session
-- If Chrome crashes, restarts, or the SW is killed → nsec is gone from memory
-- Next time you need to sign → enter password again
+- nsec lives **only in memory** during an unlocked session — `chrome.storage.session`
+  is a memory-only storage area; it's never written to disk, same as the plain
+  JS variable it used to live in
+- Ordinary service-worker restarts (frequent under Manifest V3) no longer force
+  a fresh unlock — the session correctly survives them as long as it's still
+  within the 15-minute idle window
+- It's still always fully cleared after 15 minutes of inactivity, or the moment
+  the browser closes, whichever comes first
 
 ### What Happens When a Site Requests Signing (Locked)
 
@@ -263,6 +312,13 @@ primal.net gets its signature ✔
 ```
 
 **Sites never error out. They just wait for you to approve.**
+
+> Note: `getPublicKey()` specifically is exempt from this flow by design —
+> it always resolves immediately, locked or unlocked, with no prompt at all.
+> The pubkey isn't secret, and prompting for it on every "is a signer here"
+> check most clients do on page load would be pure noise. If a site's
+> "connect" button doesn't visibly show any signer UI, that's why — only
+> `signEvent`/`nip04_*`/`nip44_*` ever trigger the approval prompt above.
 
 ### Cryptographic Stack
 
@@ -318,7 +374,7 @@ are gated by an already-resolved promise — zero overhead.
 | **Faulty signature emission (glitch / RowHammer)** | **✅ Protected — every Schnorr sig is self-verified (v1.6)** |
 | **Conversation keys outliving lock** | **✅ Protected — cache cleared on every `lockSession()` (v1.6)** |
 | MAC tampering on NIP-44 ciphertext | ✅ Protected — constant-time HMAC verification |
-| Session is left unlocked | ⚠️ Auto-locks after 15 min idle |
+| Session is left unlocked | ⚠️ Auto-locks after 15 min idle, regardless of service-worker restarts (v1.6.1) |
 | Shoulder surfing while nsec is revealed | ⚠️ nsec auto-hides after 30 seconds |
 | Your master password is weak | ⚠️ On you — use a strong one |
 
@@ -336,8 +392,8 @@ rdwe-nostr-signer/
 ├── inject.js              ← MAIN world — provides window.nostr API to pages
 ├── popup.html             ← Extension popup UI
 ├── popup.js               ← Popup logic — setup/lock/unlock/manage
-├── prompt.html            ← Permission approval dialog
-├── prompt.js              ← Prompt logic — queue, unlock-and-approve
+├── prompt.html             ← Permission approval dialog
+├── prompt.js               ← Prompt logic — queue, unlock-and-approve
 ├── lib/
 │   ├── crypto.js          ← Complete crypto library (zero dependencies)
 │   └── test_vectors.js    ← RFC-grade Known-Answer Tests, run on SW init
@@ -345,7 +401,8 @@ rdwe-nostr-signer/
 │   ├── icon16.png
 │   ├── icon48.png
 │   └── icon128.png
-└── CHANGELOG_v1.6.md      ← v1.6 hardening audit details
+├── CHANGELOG_v1.6.md      ← v1.6 hardening audit details
+└── CHANGELOG_v1.6.1.md    ← v1.6.1 session-persistence fix details
 ```
 
 ### Message Flow
@@ -410,7 +467,8 @@ When a site requests signing (and you haven't set "Always allow"):
 - Queue counter shows how many requests are pending
 - **Approve This / Deny This** — for individual requests  
 - **Approve All / Deny All** — for batched requests (e.g. Primal's 5 startup calls)
-- **"Always allow"** checkbox — skips future prompts for this site+method
+- **"Always allow"** checkbox — skips future prompts for this site+method, and now
+  correctly keeps skipping them across normal service-worker restarts *(v1.6.1)*
 
 ---
 
@@ -423,7 +481,9 @@ The extension provides a fully NIP-07 compliant `window.nostr` object:
 ```javascript
 const pubkey = await window.nostr.getPublicKey();
 // Returns: hex-encoded 32-byte public key
-// Works even when session is locked — pubkey is stored plaintext
+// Always resolves immediately — locked or unlocked, no approval prompt.
+// The pubkey is stored in plaintext (it's not secret) specifically so
+// this call never needs to touch your encrypted nsec at all.
 ```
 
 ### `signEvent(event)`
@@ -470,7 +530,7 @@ if (!window.nostr) {
   return;
 }
 
-// Get public key (auto-prompts unlock if locked)
+// Get public key (never prompts — pubkey isn't secret)
 const pubkey = await window.nostr.getPublicKey();
 console.log("Logged in as:", pubkey);
 
@@ -507,6 +567,7 @@ Tested and working with:
 | **Zap.stream** | zap.stream | ✅ Full support |
 | **Habla** | habla.news | ✅ Full support |
 | **RDWE Terminal** | rd-elite.com/Files/NOSTR/Terminal | ✅ Native support |
+| **RDWE Messenger** | rd-elite.com | ✅ Native support |
 
 ---
 
@@ -522,6 +583,17 @@ Tested and working with:
 3. Open browser console (F12) on the target page
 4. Check for: `[RDWE] ◢ Nostr Signer ◣ — window.nostr ready`
 5. If not present — check extension errors on the extensions page
+
+### It keeps asking for approval even after I checked "Always allow"
+
+**Cause (fixed in v1.6.1):** Manifest V3 kills the background service
+worker after short periods of inactivity, and versions before v1.6.1 lost
+track of the unlocked session every time that happened — even though the
+permission itself was saved correctly.
+
+**Fix:** Update to v1.6.1+. If you're already on v1.6.1 and still seeing
+this, reload the extension (`chrome://extensions` → 🔄) to make sure the
+new background.js is actually running, then try again.
 
 ### Login fails / site shows "no extension found"
 
@@ -793,6 +865,7 @@ The CWS review process is slow, centralized, and can remove extensions arbitrari
 | Key encryption at rest | ❌ | ✅ | ❓ | ✅ |
 | Master password | ❌ | ✅ | ❓ | ✅ |
 | Session auto-lock | ❌ | ✅ | ❓ | ✅ |
+| Session survives SW restarts | ❌ | ❓ | ❓ | ✅ |
 | Unlock prompt on sign | ❌ | ✅ | ❓ | ✅ |
 | Request queue (1 window) | ❌ | ❓ | ❓ | ✅ |
 | Zero dependencies | ✅ | ❌ | ❓ | ✅ |
